@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Champions Stadium Scoreboard</title>
+<style>
+:root{--cyan:#a9ffff;--white:#f7f8ff;--blue:#101b79}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:var(--white)}
+body{background:#101b79}
+.scoreboard{position:relative;width:100vw;height:100vh;min-height:360px;overflow:hidden;background:
+radial-gradient(ellipse at 50% 35%,rgba(98,125,255,.75),transparent 54%),
+linear-gradient(125deg,rgba(0,20,112,.25),rgba(38,48,143,.5)),
+#17227d}
+.scoreboard:before,.scoreboard:after{content:"";position:absolute;inset:-20%;pointer-events:none}
+.scoreboard:before{background:
+linear-gradient(125deg,transparent 20%,rgba(89,219,255,.26) 20.2%,transparent 20.7% 38%,rgba(92,200,255,.2) 38.2%,transparent 38.8%),
+linear-gradient(55deg,transparent 32%,rgba(113,190,255,.22) 32.2%,transparent 32.8% 61%,rgba(100,203,255,.2) 61.2%,transparent 61.8%);
+transform:rotate(-4deg)}
+.scoreboard:after{border:3px solid rgba(115,208,255,.25);transform:rotate(27deg) scale(.8);clip-path:polygon(20% 0,80% 0,100% 50%,80% 100%,20% 100%,0 50%)}
+.content{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:1.8vh 3vw 2vh}
+.timer{display:flex;align-items:center;justify-content:center;gap:0;z-index:1;font-weight:800;font-size:clamp(22px,4.2vw,46px);letter-spacing:.02em}
+.time{background:rgba(71,229,255,.78);padding:.12em .48em;color:white}
+.added{background:#b9ffff;color:#07194e;padding:.12em .45em}
+.main{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:2vw;flex:1;min-height:0;z-index:1}
+.team{display:flex;align-items:center;justify-content:center;min-width:0}
+.crest{width:clamp(65px,17vw,190px);height:clamp(65px,17vw,190px);object-fit:contain;filter:drop-shadow(0 4px 4px #10104488)}
+.score{display:flex;align-items:center;justify-content:center;gap:clamp(22px,8vw,105px);font-weight:900;font-size:clamp(90px,23vw,250px);line-height:.9;text-shadow:0 2px 2px #fff2;white-space:nowrap}
+.scorers{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:3vw;z-index:1;margin-top:-1vh;font-size:clamp(12px,2.7vw,27px);line-height:1.45}
+.scorers>div:first-child{text-align:right}.scorers>div:last-child{text-align:left}
+.goal{white-space:pre-wrap}
+.goal-min{color:var(--cyan);font-weight:800}
+.rule{height:4px;background:var(--cyan);width:94%;margin:auto 0 2vh;z-index:1;flex-shrink:0}
+.stats{display:grid;grid-template-columns:12% 1fr 12%;align-items:center;width:100%;text-align:center;z-index:1;font-size:clamp(15px,4.5vw,48px);line-height:1.05}
+.stat-num{color:var(--cyan);font-weight:900}
+.stat-label{text-transform:uppercase}
+.brand{position:absolute;bottom:5px;right:8px;font-size:9px;opacity:.35;z-index:2}
+@media (max-aspect-ratio:1/1){.content{padding:2vh 2vw}.main{gap:1vw}.score{gap:5vw}.crest{width:clamp(54px,19vw,130px);height:clamp(54px,19vw,130px)}.scorers{font-size:clamp(10px,2.8vw,20px)}}
+</style>
+</head>
+<body>
+<div class="scoreboard">
+  <div class="content">
+    <div class="timer"><span class="time" id="clock">90:00</span><span class="added" id="added">+7</span></div>
+    <div class="main">
+      <div class="team"><img class="crest" id="homeLogo" alt="Stemma casa"></div>
+      <div class="score"><span id="homeScore">1</span><span id="awayScore">3</span></div>
+      <div class="team"><img class="crest" id="awayLogo" alt="Stemma ospite"></div>
+    </div>
+    <div class="scorers"><div id="homeScorers"></div><div id="awayScorers"></div></div>
+    <div class="rule"></div>
+    <div class="stats"><div class="stat-num" id="homeStat">10</div><div class="stat-label" id="statLabel">Attempts on target</div><div class="stat-num" id="awayStat">4</div></div>
+  </div>
+  <div class="brand">STADIUM SCOREBOARD</div>
+</div>
+<script>
+/* Personalizza il tabellone dalla console del browser o da un pannello esterno.
+   Esempio: Scoreboard.set({homeName:"Atalanta", awayName:"Club Brugge", homeScore:1, awayScore:3})
+   Timer: Scoreboard.start(), stop(), setMinute(67), setAddedTime(7)
+*/
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = {
+    homeName:"Atalanta", awayName:"Club Brugge",
+    homeLogo:"https://upload.wikimedia.org/wikipedia/en/6/66/Atalanta_BC_logo.svg",
+    awayLogo:"https://upload.wikimedia.org/wikipedia/en/5/5e/Club_Brugge_KV_logo.svg",
+    homeScore:1, awayScore:3, minute:90, second:0, addedTime:7, running:false,
+    homeScorers:[{name:"LOOKMAN",minute:"46'"}],
+    awayScorers:[{name:"TALBI",minute:"3', 27'"},{name:"JUTGLÀ",minute:"45'+3"}],
+    homeStat:10, awayStat:4, statLabel:"ATTEMPTS ON TARGET"
+  };
+  let last = Date.now(), timerId;
+  function renderGoals(el, goals){
+    $(el).innerHTML = goals.map(g => `<div class="goal">${escapeHTML(g.name)} <span class="goal-min">${escapeHTML(g.minute)}</span></div>`).join("");
+  }
+  function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function render(){
+    $("homeLogo").src=state.homeLogo; $("awayLogo").src=state.awayLogo;
+    $("homeLogo").alt=state.homeName; $("awayLogo").alt=state.awayName;
+    $("homeScore").textContent=state.homeScore; $("awayScore").textContent=state.awayScore;
+    $("clock").textContent=String(state.minute).padStart(2,"0")+":"+String(state.second).padStart(2,"0");
+    $("added").textContent="+"+state.addedTime;
+    $("added").style.display=state.addedTime>0?"block":"none";
+    renderGoals("homeScorers",state.homeScorers); renderGoals("awayScorers",state.awayScorers);
+    $("homeStat").textContent=state.homeStat; $("awayStat").textContent=state.awayStat;
+    $("statLabel").textContent=state.statLabel;
+    document.title=state.homeName+" "+state.homeScore+"-"+state.awayScore+" "+state.awayName;
+  }
+  function tick(){
+    if(!state.running)return;
+    const now=Date.now();
+    if(now-last>=1000){const elapsed=Math.floor((now-last)/1000);last+=elapsed*1000;
+      const total=state.minute*60+state.second+elapsed;
+      state.minute=Math.floor(total/60);state.second=total%60;render();}
+  }
+  timerId=setInterval(tick,200);
+  window.Scoreboard={
+    set(patch){Object.assign(state,patch);render();return {...state};},
+    start(){state.running=true;last=Date.now();return "Timer avviato";},
+    stop(){state.running=false;return "Timer fermato";},
+    reset(){state.minute=0;state.second=0;state.running=false;render();return "Timer azzerato";},
+    setMinute(n){state.minute=Math.max(0,Math.floor(Number(n)||0));state.second=0;last=Date.now();render();},
+    setTime(m,s=0){state.minute=Math.max(0,Math.floor(Number(m)||0));state.second=Math.max(0,Math.min(59,Math.floor(Number(s)||0)));last=Date.now();render();},
+    setAddedTime(n){state.addedTime=Math.max(0,Math.floor(Number(n)||0));render();},
+    goal(team){const key=team==="home"?"homeScore":"awayScore";state[key]++;render();},
+    setScore(home,away){state.homeScore=Math.max(0,Number(home)||0);state.awayScore=Math.max(0,Number(away)||0);render();},
+    addScorer(team,name,minute){const key=team==="home"?"homeScorers":"awayScorers";state[key].push({name,minute});render();},
+    clearScorers(team){state[team==="home"?"homeScorers":"awayScorers"]=[];render();},
+    state(){return JSON.parse(JSON.stringify(state));}
+  };
+  render();
+})();
+</script>
+</body>
+</html>
